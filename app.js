@@ -18,6 +18,7 @@ const app = express();
 const allowedOrigins = [
     "http://localhost:3000",
     "http://localhost:3001",
+    "https://subscription-tracker-frontend.vercel.app",
     ...(SERVER_URL ? [SERVER_URL] : []),
 ]
 
