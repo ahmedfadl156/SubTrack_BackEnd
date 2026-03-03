@@ -1,5 +1,5 @@
 import express from "express";
-import { PORT, SESSION_SECRET } from "./config/env.js";
+import { PORT, SESSION_SECRET, SERVER_URL, NODE_ENV } from "./config/env.js";
 import userRouter from "./routes/user.routes.js";
 import authRouter from "./routes/auth.routes.js";
 import subscriptionRouter from "./routes/subscription.routes.js";
@@ -16,7 +16,7 @@ import { startCronJobs } from "./utils/cronJobs.js";
 const app = express();
 
 app.use(cors({
-    origin: "http://localhost:3000",
+    origin: NODE_ENV === "production" ? SERVER_URL : "http://localhost:3000",
     credentials: true,
     optionsSuccessStatus: 200
 }))
@@ -25,7 +25,7 @@ app.use(session({
     secret: SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
-    cookie: { secure: false }
+    cookie: { secure: NODE_ENV === "production", httpOnly: true }
 }))
 
 app.use(passport.initialize())
