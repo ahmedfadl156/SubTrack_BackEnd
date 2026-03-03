@@ -15,8 +15,22 @@ import { startCronJobs } from "./utils/cronJobs.js";
 // The app
 const app = express();
 
+const allowedOrigins = [
+    "http://localhost:3000",
+    "http://localhost:3001",
+    ...(SERVER_URL ? [SERVER_URL] : []),
+]
+
 app.use(cors({
-    origin: NODE_ENV === "production" ? SERVER_URL : "http://localhost:3000",
+    origin: (origin, callback) => {
+        // Allow requests with no origin (e.g. mobile apps, curl, Postman)
+        if (!origin) return callback(null, true);
+        if (allowedOrigins.includes(origin)) {
+            callback(null, origin);
+        } else {
+            callback(new Error(`CORS: Origin ${origin} not allowed`));
+        }
+    },
     credentials: true,
     optionsSuccessStatus: 200
 }))
