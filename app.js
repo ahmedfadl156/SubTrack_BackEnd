@@ -20,7 +20,6 @@ const allowedOrigins = [
     "http://localhost:3000",
     "http://localhost:3001",
     "https://subscription-tracker-frontend.vercel.app",
-    "https://subtrackbackend-production.up.railway.app",
     ...(SERVER_URL ? [SERVER_URL] : []),
 ]
 
@@ -75,8 +74,8 @@ const startServer = async () => {
     });
 };
 
-// For local development
-if (process.env.NODE_ENV !== "production") {
+// Start server on Railway (and local dev). Skip only on Vercel (serverless).
+if (!process.env.VERCEL) {
     startServer();
 }
 
