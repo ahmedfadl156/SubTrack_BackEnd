@@ -1,5 +1,5 @@
 import express from "express";
-import { PORT, SESSION_SECRET, SERVER_URL, NODE_ENV } from "./config/env.js";
+import { PORT, SESSION_SECRET, SERVER_URL, NODE_ENV, CLIENT_URL } from "./config/env.js";
 import userRouter from "./routes/user.routes.js";
 import authRouter from "./routes/auth.routes.js";
 import subscriptionRouter from "./routes/subscription.routes.js";
@@ -20,7 +20,7 @@ const allowedOrigins = [
     "http://localhost:3000",
     "http://localhost:3001",
     "https://subscription-tracker-frontend.vercel.app",
-    ...(SERVER_URL ? [SERVER_URL] : []),
+    ...(CLIENT_URL ? [CLIENT_URL] : []),
 ]
 
 app.use(cors({
