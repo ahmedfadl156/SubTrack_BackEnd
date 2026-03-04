@@ -6,58 +6,106 @@ import AppError from "../utils/appError.js"
 import Payments from "../models/payments.model.js"
 import dayjs from "dayjs"
 
-export const createSubscription = async (req , res , next) => {
-    // هفتح هنا session جديدة ودى بتضمن ان كل حاجة تتم مع بعض ياكله ياخلاص
-    const session = await mongoose.startSession();
-    session.startTransaction();
+// export const createSubscription = async (req, res, next) => {
+//     // هفتح هنا session جديدة ودى بتضمن ان كل حاجة تتم مع بعض ياكله ياخلاص
+//     const session = await mongoose.startSession();
+//     session.startTransaction();
+//     try {
+//         // هنا بنعمل انشاء للاشتراك الجديد
+//         const newSubscriptions = await Subscription.create([{
+//             ...req.body,
+//             user: req.user._id
+//         }], { session })
+
+//         const subscription = newSubscriptions[0];
+
+//         // بعدين بقا هنا هنعمل اول دفه للاشتراك ده فى ال payments history بتاعنا
+//         await Payments.create([{
+//             user: req.user._id,
+//             subscription: subscription._id,
+//             amount: subscription.price,
+//             currency: subscription.currency,
+//             paymentDate: subscription.startDate || new Date()
+//         }], { session })
+
+//         await session.commitTransaction();
+//         session.endSession();
+
+//         // Trigger the reminder workflow — wrapped in its own try/catch so that
+//         // a QStash/Upstash failure (e.g. local emulator not running) does NOT
+//         // roll back a successfully-created subscription.
+//         try {
+//             await workflowClient.trigger({
+//                 url: `${SERVER_URL}/api/v1/workflows/subscription/reminder`,
+//                 body: {
+//                     subscriptionId: subscription.id
+//                 },
+//                 headers: {
+//                     'content-type': 'application/json'
+//                 },
+//                 retries: 0,
+//             });
+//         } catch (workflowError) {
+//             console.warn("⚠️  Workflow trigger failed (non-fatal):", workflowError?.message ?? workflowError); 
+//         }
+
+//         res.status(201).json({
+//             status: "success",
+//             data: subscription
+//         })
+//     } catch (error) {
+//         await session.abortTransaction();
+//         session.endSession();
+//         next(error)
+//     }
+// }
+
+export const createSubscription = async (req, res, next) => {
     try {
-        // هنا بنعمل انشاء للاشتراك الجديد
-        const newSubscriptions = await Subscription.create([{
+        // Create the subscription (no session — local MongoDB is standalone, not a replica set)
+        const subscription = await Subscription.create({
             ...req.body,
             user: req.user._id
-        }] , {session})
+        });
 
-        const subscription = newSubscriptions[0];
-
-        // بعدين بقا هنا هنعمل اول دفه للاشتراك ده فى ال payments history بتاعنا
-        await Payments.create([{
+        // Record the first payment in history
+        await Payments.create({
             user: req.user._id,
             subscription: subscription._id,
             amount: subscription.price,
             currency: subscription.currency,
             paymentDate: subscription.startDate || new Date()
-        }], {session})
+        });
 
-        await session.commitTransaction();
-        session.endSession();
-
-        const {workflowRunId} = await workflowClient.trigger({
-            url: `${SERVER_URL}/api/v1/workflows/subscription/reminder`,
-            body: {
-                subscriptionId: subscription.id
-            },
-            headers: {
-                'content-type': 'application/json'
-            },
-            retries: 0,
-        })
+        try {
+            await workflowClient.trigger({
+                url: `${SERVER_URL}/api/v1/workflows/subscription/reminder`,
+                body: {
+                    subscriptionId: subscription.id
+                },
+                headers: {
+                    'content-type': 'application/json'
+                },
+                retries: 0,
+            });
+        } catch (workflowError) {
+            console.warn("⚠️  Workflow trigger failed (non-fatal):", workflowError?.message ?? workflowError);
+        }
 
         res.status(201).json({
             status: "success",
             data: subscription
         })
     } catch (error) {
-        await session.abortTransaction();
-        session.endSession();
         next(error)
     }
 }
 
-export const getUserSubscriptions = async (req , res , next) => {
+export const getUserSubscriptions = async (req, res, next) => {
     try {
-        const subscriptions = await Subscription.find({user: req.user.id});
-        if(!subscriptions){
-            next(new AppError("There Is No Subscriptions For This User Right Now , Add Your First One" , 400))
+        const subscriptions = await Subscription.find({ user: req.user.id });
+        if (!subscriptions) {
+            next(new AppError("There Is No Subscriptions For This User Right Now , Add Your First One", 400))
         }
         res.status(200).json({
             status: "success",
@@ -68,7 +116,7 @@ export const getUserSubscriptions = async (req , res , next) => {
     }
 }
 
-export const renewSubscription = async (req , res , next) => {
+export const renewSubscription = async (req, res, next) => {
     const session = await mongoose.startSession();
     session.startTransaction();
 
@@ -81,18 +129,18 @@ export const renewSubscription = async (req , res , next) => {
             user: req.user._id
         }).session(session);
 
-        if(!susbcription){
+        if (!susbcription) {
             next(new AppError("Subscription Not Found!"));
         }
 
         // تمام قبل التجديد لازم نتأكد ان الاشتراك انتهى فعلا
-        if(susbcription.status !== "expired"){
+        if (susbcription.status !== "expired") {
             next(new AppError("You can only renew an expired subscription"));
         }
 
         const today = dayjs();
         let newRenewalDate;
-        
+
         switch (susbcription.frequency) {
             case 'daily': newRenewalDate = today.add(1, 'day'); break;
             case 'weekly': newRenewalDate = today.add(1, 'week'); break;
@@ -104,7 +152,7 @@ export const renewSubscription = async (req , res , next) => {
         susbcription.status = "active";
         susbcription.renewalDate = newRenewalDate;
 
-        await susbcription.save({session});
+        await susbcription.save({ session });
 
         // نسجل الدفعة الجديدة
         await Payments.create([{
@@ -113,7 +161,7 @@ export const renewSubscription = async (req , res , next) => {
             amount: susbcription.price,
             currency: susbcription.currency,
             paymentDate: today.toDate()
-        }], {session})
+        }], { session })
 
         await session.commitTransaction();
         session.endSession();
@@ -162,10 +210,10 @@ export const getUserSpendingAnalytics = async (req, res, next) => {
                 },
             ]),
             Subscription.find({
-                user: req.user.id, 
+                user: req.user.id,
                 renewalDate: { $gte: today, $lte: nextWeek },
                 status: "active"
-            }).sort({ renewalDate: 1 }) 
+            }).sort({ renewalDate: 1 })
         ]);
 
         const upcomingCount = upcomingRenewals.length;
@@ -173,31 +221,31 @@ export const getUserSpendingAnalytics = async (req, res, next) => {
         // حساب الإجماليات
         const totalSubscriptions = analytics.reduce((acc, curr) => acc + curr.subscriptionsCount, 0);
         const totalCost = analytics.reduce((acc, curr) => acc + curr.totalSpent, 0);
-        
+
         // هنا جمعنا كل الاشتراكات النشطة من كل الفئات في متغير واحد
         const activeSubscriptions = analytics.reduce((acc, curr) => acc + curr.activeCount, 0);
 
         const formattedAnalytics = analytics.map(sub => ({
             category: sub._id,
             subscriptionsCount: sub.subscriptionsCount,
-            activeCount: sub.activeCount, // ضفناها هنا لو حبيت تعرضها لكل فئة في الفرونت إند
-            countPercentage: totalSubscriptions === 0 
-                ? '0.0%' 
+            activeCount: sub.activeCount,
+            countPercentage: totalSubscriptions === 0
+                ? '0.0%'
                 : ((sub.subscriptionsCount / totalSubscriptions) * 100).toFixed(1) + '%',
             totalSpent: sub.totalSpent,
-            costPercentage: totalCost === 0 
-                ? '0.0%' 
+            costPercentage: totalCost === 0
+                ? '0.0%'
                 : ((sub.totalSpent / totalCost) * 100).toFixed(1) + "%",
         }));
 
         res.status(200).json({
             status: "success",
             totalSubscriptions, // إجمالي الاشتراكات كلها (نشط + منتهي)
-            activeSubscriptions, // إجمالي الاشتراكات النشطة فقط اللي إنت طلبتها
+            activeSubscriptions, //إجمالي الاشتراكات النشطة فقط 
             totalCost,
             upcomingCount,
-            upcomingRenewals, 
-            data: formattedAnalytics 
+            upcomingRenewals,
+            data: formattedAnalytics
         });
     } catch (error) {
         next(error);
