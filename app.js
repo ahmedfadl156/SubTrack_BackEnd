@@ -20,6 +20,7 @@ const allowedOrigins = [
     "http://localhost:3000",
     "http://localhost:3001",
     "https://subscription-tracker-frontend.vercel.app",
+    "https://subtrackbackend-production.up.railway.app",
     ...(SERVER_URL ? [SERVER_URL] : []),
 ]
 
