@@ -4,6 +4,8 @@ import { asyncHandler } from "../utils/asyncHandler.js";
 
 const workflowRouter = Router();
 
-workflowRouter.all('/subscription/reminder', asyncHandler(sendReminders))
+workflowRouter.get('/subscription/reminder', (req, res) => res.status(200).json({ ok: true }));
+
+workflowRouter.post('/subscription/reminder', asyncHandler(sendReminders))
 
 export default workflowRouter;
