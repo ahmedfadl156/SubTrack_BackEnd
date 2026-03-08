@@ -26,17 +26,26 @@ const allowedOrigins = [
 
 app.use(cors({
     origin: (origin, callback) => {
-        if (!origin) return callback(null, true);
-        if (allowedOrigins.includes(origin)) {
-            callback(null, origin);
+        const allowedOrigins = [
+            "http://localhost:3000",
+            "http://localhost:3001",
+            "https://subscription-tracker-wheat.vercel.app",  
+            ...(process.env.CLIENT_URL ? [process.env.CLIENT_URL] : []),
+        ];
+        
+        if (!origin || allowedOrigins.includes(origin)) {
+            callback(null, true);
         } else {
-            callback(new Error(`CORS: Origin ${origin} not allowed`));
+            callback(new Error(`CORS blocked: ${origin}`));
         }
     },
     credentials: true,
+    methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
     optionsSuccessStatus: 200
-}))
+}));
 
+app.options("*", cors());
 app.use(session({
     secret: SESSION_SECRET,
     resave: false,
