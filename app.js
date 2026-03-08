@@ -10,12 +10,11 @@ import arcjectMiddleware from "./middlewares/arcject.middleware.js";
 import workflowRouter from "./routes/workflow.routes.js";
 import passport from "passport";
 import session from "express-session";
-import { RedisStore } from "connect-redis";
 import cors from "cors"
 import { startCronJobs, startUpcomingRenewalsCronJob } from "./utils/cronJobs.js";
 import paymentRouter from "./routes/payments.routes.js";
 import notificationRouter from "./routes/notification.routes.js";
-import { redis } from "./config/redis.js";
+
 // The app
 const app = express();
 
@@ -28,14 +27,10 @@ const corsOptions = {
             "https://subscription-tracker-wheat.vercel.app",
             ...(process.env.CLIENT_URL ? [process.env.CLIENT_URL] : []),
         ];
-        
-        console.log(`[CORS] Request from origin: ${origin}`);
-        
+
         if (!origin || allowedOrigins.includes(origin)) {
-            console.log(`[CORS] Origin allowed: ${origin}`);
             callback(null, true);
         } else {
-            console.error(`[CORS] Origin blocked: ${origin}`);
             callback(new Error(`CORS blocked: ${origin}`));
         }
     },
@@ -49,22 +44,21 @@ const corsOptions = {
 };
 
 // CRITICAL: Apply CORS middleware VERY FIRST - before any other middleware
-app.use(cors(corsOptions));
 app.options("*", cors(corsOptions));
+app.use(cors(corsOptions));
 
 // Then body parsers
 app.use(express.json({ limit: '10mb' }))
 app.use(express.urlencoded({ extended: false, limit: '10mb' }))
 app.use(cookieParser())
 
-// Session middleware
+// Session middleware (in-memory store)
 app.use(session({
-    store: new RedisStore({ client: redis }),
     secret: SESSION_SECRET,
     resave: false,
     saveUninitialized: false,
-    cookie: { 
-        secure: NODE_ENV === "production", 
+    cookie: {
+        secure: NODE_ENV === "production",
         httpOnly: true,
         maxAge: 1000 * 60 * 60 * 24,
         sameSite: 'lax'
@@ -100,26 +94,23 @@ app.get('/health', (req, res) => {
     res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// Global Middleware
+// Global Error Middleware
 app.use(errorMiddleware)
 
 
-// Start the server only after a successful database connection.
 const startServer = async () => {
     try {
         await connectToDB();
         console.log('[SERVER] Database connected successfully');
-        
+
         const server = app.listen(PORT, '0.0.0.0', () => {
             console.log(`[SERVER] The Server Is Running On Port ${PORT}`);
         });
 
-        // Server timeout configuration
         server.keepAliveTimeout = 65000;
         server.headersTimeout = 66000;
         server.requestTimeout = 30000;
 
-        // Handle server errors
         server.on('clientError', (err, socket) => {
             console.error('[SERVER ERROR]', err);
             if (socket.writable) {
@@ -127,7 +118,6 @@ const startServer = async () => {
             }
         });
 
-        // Handle connection errors
         server.on('error', (err) => {
             if (err.code === 'EADDRINUSE') {
                 console.error(`[SERVER] Port ${PORT} is already in use`);
@@ -136,24 +126,13 @@ const startServer = async () => {
             }
         });
 
-        // Graceful shutdown
         const gracefulShutdown = async () => {
             console.log('[SERVER] Shutting down gracefully...');
             server.close(async () => {
                 console.log('[SERVER] HTTP server closed');
-                try {
-                    // Close Redis connection
-                    if (redis) {
-                        await redis.disconnect();
-                        console.log('[SERVER] Redis disconnected');
-                    }
-                } catch (err) {
-                    console.error('[SERVER] Error during shutdown:', err);
-                }
                 process.exit(0);
             });
 
-            // Force shutdown after 10 seconds
             setTimeout(() => {
                 console.error('[SERVER] Forced shutdown after timeout');
                 process.exit(1);
@@ -162,15 +141,13 @@ const startServer = async () => {
 
         process.on('SIGTERM', gracefulShutdown);
         process.on('SIGINT', gracefulShutdown);
-        
-        // Handle uncaught exceptions
+
         process.on('uncaughtException', (err) => {
             console.error('[UNCAUGHT EXCEPTION]', err);
             process.exit(1);
         });
 
-        // Handle unhandled promise rejections
-        process.on('unhandledRejection', (reason, promise) => {
+        process.on('unhandledRejection', (reason) => {
             console.error('[UNHANDLED REJECTION]', reason);
         });
 
@@ -180,10 +157,8 @@ const startServer = async () => {
     }
 };
 
-// Start server on Railway (and local dev). Skip only on Vercel (serverless).
 if (!process.env.VERCEL) {
     startServer();
 }
 
-// Export app for serverless environments (Vercel)
 export default app;
