@@ -7,90 +7,31 @@ import Payments from "../models/payments.model.js"
 import dayjs from "dayjs"
 import Notification from "../models/notifications.model.js"
 
-// export const createSubscription = async (req, res, next) => {
-//     // هفتح هنا session جديدة ودى بتضمن ان كل حاجة تتم مع بعض ياكله ياخلاص
-//     const session = await mongoose.startSession();
-//     session.startTransaction();
-//     try {
-//         // هنا بنعمل انشاء للاشتراك الجديد
-//         const newSubscriptions = await Subscription.create([{
-//             ...req.body,
-//             user: req.user._id
-//         }], { session })
-
-//         const subscription = newSubscriptions[0];
-
-//         // بعدين بقا هنا هنعمل اول دفه للاشتراك ده فى ال payments history بتاعنا
-//         await Payments.create([{
-//             user: req.user._id,
-//             subscription: subscription._id,
-//             amount: subscription.price,
-//             currency: subscription.currency,
-//             paymentDate: subscription.startDate || new Date()
-//         }], { session })
-
-//         await session.commitTransaction();
-//         session.endSession();
-
-//         // Trigger the reminder workflow — wrapped in its own try/catch so that
-//         // a QStash/Upstash failure (e.g. local emulator not running) does NOT
-//         // roll back a successfully-created subscription.
-//         try {
-//             await workflowClient.trigger({
-//                 url: `${SERVER_URL}/api/v1/workflows/subscription/reminder`,
-//                 body: {
-//                     subscriptionId: subscription.id
-//                 },
-//                 headers: {
-//                     'content-type': 'application/json'
-//                 },
-//                 retries: 0,
-//             });
-//         } catch (workflowError) {
-//             console.warn("⚠️  Workflow trigger failed (non-fatal):", workflowError?.message ?? workflowError); 
-//         }
-
-//         res.status(201).json({
-//             status: "success",
-//             data: subscription
-//         })
-//     } catch (error) {
-//         await session.abortTransaction();
-//         session.endSession();
-//         next(error)
-//     }
-// }
-
 export const createSubscription = async (req, res, next) => {
+    // هفتح هنا session جديدة ودى بتضمن ان كل حاجة تتم مع بعض ياكله ياخلاص
+    const session = await mongoose.startSession();
+    session.startTransaction();
     try {
-        // Create the subscription (no session — local MongoDB is standalone, not a replica set)
-        const subscription = await Subscription.create({
+        // هنا بنعمل انشاء للاشتراك الجديد
+        const newSubscriptions = await Subscription.create([{
             ...req.body,
             user: req.user._id
-        });
+        }], { session })
 
-        // Record the first payment in history
-        await Payments.create({
+        const subscription = newSubscriptions[0];
+
+        // بعدين بقا هنا هنعمل اول دفه للاشتراك ده فى ال payments history بتاعنا
+        await Payments.create([{
             user: req.user._id,
             subscription: subscription._id,
             amount: subscription.price,
             currency: subscription.currency,
             paymentDate: subscription.startDate || new Date()
-        });
+        }], { session })
 
-        try {
-            // هنحط هنا انه يبعت اشعار يعمل اشعار جديد فى الداتابيز ان الاشتراك اتعمل بنجاح عشان نحطه فى صفحة الاشعارات لليوزر
-            await Notification.create({
-                user: req.user._id,
-                title: "Subscription Created Successfully",
-                message: `Your subscription to ${subscription.name} has been created successfully!`,
-                type: "success",
-                subscription: subscription._id,
-            })
-        } catch (NotificationError) {
-            console.error("Error creating notification:", NotificationError);
-        }
-
+        await session.commitTransaction();
+        session.endSession();
+        
         try {
             await workflowClient.trigger({
                 url: `${SERVER_URL}/api/v1/workflows/subscription/reminder`,
@@ -103,7 +44,7 @@ export const createSubscription = async (req, res, next) => {
                 retries: 0,
             });
         } catch (workflowError) {
-            console.warn("⚠️  Workflow trigger failed (non-fatal):", workflowError?.message ?? workflowError);
+            console.warn("⚠️  Workflow trigger failed (non-fatal):", workflowError?.message ?? workflowError); 
         }
 
         res.status(201).json({
@@ -111,9 +52,65 @@ export const createSubscription = async (req, res, next) => {
             data: subscription
         })
     } catch (error) {
+        await session.abortTransaction();
+        session.endSession();
         next(error)
     }
 }
+
+// export const createSubscription = async (req, res, next) => {
+//     try {
+//         // Create the subscription (no session — local MongoDB is standalone, not a replica set)
+//         const subscription = await Subscription.create({
+//             ...req.body,
+//             user: req.user._id
+//         });
+
+//         // Record the first payment in history
+//         await Payments.create({
+//             user: req.user._id,
+//             subscription: subscription._id,
+//             amount: subscription.price,
+//             currency: subscription.currency,
+//             paymentDate: subscription.startDate || new Date()
+//         });
+
+//         try {
+//             // هنحط هنا انه يبعت اشعار يعمل اشعار جديد فى الداتابيز ان الاشتراك اتعمل بنجاح عشان نحطه فى صفحة الاشعارات لليوزر
+//             await Notification.create({
+//                 user: req.user._id,
+//                 title: "Subscription Created Successfully",
+//                 message: `Your subscription to ${subscription.name} has been created successfully!`,
+//                 type: "success",
+//                 subscription: subscription._id,
+//             })
+//         } catch (NotificationError) {
+//             console.error("Error creating notification:", NotificationError);
+//         }
+
+//         try {
+//             await workflowClient.trigger({
+//                 url: `${SERVER_URL}/api/v1/workflows/subscription/reminder`,
+//                 body: {
+//                     subscriptionId: subscription.id
+//                 },
+//                 headers: {
+//                     'content-type': 'application/json'
+//                 },
+//                 retries: 0,
+//             });
+//         } catch (workflowError) {
+//             console.warn("⚠️  Workflow trigger failed (non-fatal):", workflowError?.message ?? workflowError);
+//         }
+
+//         res.status(201).json({
+//             status: "success",
+//             data: subscription
+//         })
+//     } catch (error) {
+//         next(error)
+//     }
+// }
 
 export const getUserSubscriptions = async (req, res, next) => {
     try {
