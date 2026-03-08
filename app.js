@@ -61,7 +61,7 @@ app.use(session({
         secure: NODE_ENV === "production",
         httpOnly: true,
         maxAge: 1000 * 60 * 60 * 24,
-        sameSite: 'lax'
+        sameSite: NODE_ENV === "production" ? 'none' : 'lax'
     }
 }))
 
@@ -88,6 +88,11 @@ app.use('/api/v1/notifications', notificationRouter)
 // Cron Jobs
 startCronJobs();
 startUpcomingRenewalsCronJob();
+
+// Root route (for Railway health checks and direct URL access)
+app.get('/', (req, res) => {
+    res.status(200).json({ status: 'ok', message: 'SubTrack API is running' });
+});
 
 // Health check endpoint
 app.get('/health', (req, res) => {

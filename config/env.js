@@ -1,6 +1,7 @@
 import { config } from "dotenv";
 import path from "path";
 import { fileURLToPath } from "url";
+import { existsSync } from "fs";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -9,7 +10,12 @@ const envFile = path.join(
     `.env.${process.env.NODE_ENV || "development"}.local`
 );
 
-config({ path: envFile });
+// Only load .env file if it exists (won't exist on Railway/cloud deployments)
+if (existsSync(envFile)) {
+    config({ path: envFile });
+} else {
+    console.log(`[ENV] No env file found at ${envFile}, using system environment variables`);
+}
 
 export const { PORT,
     NODE_ENV,
