@@ -17,22 +17,14 @@ import notificationRouter from "./routes/notification.routes.js";
 // The app
 const app = express();
 
-const allowedOrigins = [
-    "http://localhost:3000",
-    "http://localhost:3001",
-    "https://subscription-tracker-wheat.vercel.app",
-    ...(CLIENT_URL ? [CLIENT_URL] : []),
-]
-
-app.use(cors({
+const corsOptions = {
     origin: (origin, callback) => {
         const allowedOrigins = [
             "http://localhost:3000",
             "http://localhost:3001",
-            "https://subscription-tracker-wheat.vercel.app",  
+            "https://subscription-tracker-wheat.vercel.app",
             ...(process.env.CLIENT_URL ? [process.env.CLIENT_URL] : []),
         ];
-        
         if (!origin || allowedOrigins.includes(origin)) {
             callback(null, true);
         } else {
@@ -43,9 +35,11 @@ app.use(cors({
     methods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
     optionsSuccessStatus: 200
-}));
+};
 
-app.options("*", cors());
+app.options("*", cors(corsOptions));
+app.use(cors(corsOptions));
+
 app.use(session({
     secret: SESSION_SECRET,
     resave: false,
