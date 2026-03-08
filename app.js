@@ -20,7 +20,7 @@ const app = express();
 const allowedOrigins = [
     "http://localhost:3000",
     "http://localhost:3001",
-    "https://subscription-tracker-wheat.vercel.app/",
+    "https://subscription-tracker-wheat.vercel.app",
     ...(CLIENT_URL ? [CLIENT_URL] : []),
 ]
 
