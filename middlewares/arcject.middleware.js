@@ -3,7 +3,15 @@ import { aj } from "../config/arcject.js";
 
 const arcjectMiddleware = async (req, res, next) => {
     try {
-        const decision = await aj.protect(req, { requested: 1 });
+        // Set a timeout for Arcjet protection
+        const timeoutPromise = new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Arcjet timeout')), 5000)
+        );
+
+        const decision = await Promise.race([
+            aj.protect(req, { requested: 1 }),
+            timeoutPromise
+        ]);
 
         if (decision.isDenied()) {
             if (decision.reason.isRateLimit()) {
@@ -18,8 +26,9 @@ const arcjectMiddleware = async (req, res, next) => {
         }
         return next();
     } catch (error) {
-        console.log(`Arcject Middleware Error: ${error}`)
-        return next(error)
+        console.log(`[ARCJET] Middleware Error: ${error.message}`);
+        // Don't block requests if Arcjet fails
+        return next();
     }
 }
 
