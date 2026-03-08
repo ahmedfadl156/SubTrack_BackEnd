@@ -29,9 +29,23 @@ export const createSubscription = async (req, res, next) => {
             paymentDate: subscription.startDate || new Date()
         }], { session })
 
+        try {
+            // هنحط هنا انه يبعت اشعار يعمل اشعار جديد فى الداتابيز ان الاشتراك اتعمل بنجاح عشان نحطه فى صفحة الاشعارات لليوزر
+            await Notification.create({
+                user: req.user._id,
+                title: "Subscription Created Successfully",
+                message: `Your subscription to ${subscription.name} has been created successfully!`,
+                type: "success",
+                subscription: subscription._id,
+            })
+        } catch (NotificationError) {
+            console.error("Error creating notification:", NotificationError);
+        }
+
         await session.commitTransaction();
         session.endSession();
-        
+
+
         try {
             await workflowClient.trigger({
                 url: `${SERVER_URL}/api/v1/workflows/subscription/reminder`,
