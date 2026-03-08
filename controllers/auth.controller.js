@@ -6,6 +6,7 @@ import { GITHUB_CLIENT_ID, GITHUB_CLIENT_SECRET, GOOGLE_CLIENT_ID, GOOGLE_CLIENT
 import GoogleStrategy from "passport-google-oauth20";
 import { Strategy as GitHubStrategy } from "passport-github2";
 import passport from "passport";
+import AppError from "../utils/appError.js";
 
 const sendToken = (user , token , statusCode , res) => {
     const cookieOptions = {
@@ -144,6 +145,30 @@ export const signOut = async (req , res) => {
     })
 }
 
+
+export const updatePassword = async (req , res , next) => {
+    try {
+        const user = await User.findById(req.user._id).select("+password");
+
+        if(!user){
+            return next(new AppError("No user found by this ID" , 404))
+        }
+
+        const correctOldPassword = await user.correctPassword(req.body.oldPassword , user.password);
+
+        if(!correctOldPassword){
+            return next(new AppError("The given password is incorrect" , 401))
+        }
+
+        user.password = req.body.newPassword;
+        await user.save();
+
+        const token = jwt.sign({userId: user._id , role: user.role} , JWT_SECRET , {expiresIn: JWT_EXPIRES_IN});
+        sendToken(user , token , 200 , res)
+    } catch (error) {
+        next(new AppError("There Is Error While Updating User Password: " + error.message , 500))
+    }
+}
 
 // فانكشن استعملها فى تسجيل الدخول باستعمال جوجل
 passport.use(new GoogleStrategy({

@@ -1,5 +1,5 @@
 import express from "express";
-import { PORT, SESSION_SECRET, SERVER_URL, NODE_ENV, CLIENT_URL } from "./config/env.js";
+import { PORT, SESSION_SECRET, NODE_ENV, CLIENT_URL } from "./config/env.js";
 import userRouter from "./routes/user.routes.js";
 import authRouter from "./routes/auth.routes.js";
 import subscriptionRouter from "./routes/subscription.routes.js";
@@ -11,21 +11,21 @@ import workflowRouter from "./routes/workflow.routes.js";
 import passport from "passport";
 import session from "express-session";
 import cors from "cors"
-import { startCronJobs } from "./utils/cronJobs.js";
+import { startCronJobs, startUpcomingRenewalsCronJob } from "./utils/cronJobs.js";
 import paymentRouter from "./routes/payments.routes.js";
+import notificationRouter from "./routes/notification.routes.js";
 // The app
 const app = express();
 
 const allowedOrigins = [
     "http://localhost:3000",
     "http://localhost:3001",
-    "https://subscription-tracker-frontend.vercel.app",
+    "https://subscription-tracker-wheat.vercel.app/",
     ...(CLIENT_URL ? [CLIENT_URL] : []),
 ]
 
 app.use(cors({
     origin: (origin, callback) => {
-        // Allow requests with no origin (e.g. mobile apps, curl, Postman)
         if (!origin) return callback(null, true);
         if (allowedOrigins.includes(origin)) {
             callback(null, origin);
@@ -59,8 +59,11 @@ app.use('/api/v1/users', userRouter)
 app.use('/api/v1/subscriptions', subscriptionRouter)
 app.use('/api/v1/payments', paymentRouter)
 app.use('/api/v1/workflows', workflowRouter)
+app.use('/api/v1/notifications', notificationRouter)
 
+// Cron Jobs
 startCronJobs();
+startUpcomingRenewalsCronJob();
 
 // Global Middleware
 app.use(errorMiddleware)

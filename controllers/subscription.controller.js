@@ -5,6 +5,7 @@ import Subscription from "../models/subscription.model.js"
 import AppError from "../utils/appError.js"
 import Payments from "../models/payments.model.js"
 import dayjs from "dayjs"
+import Notification from "../models/notifications.model.js"
 
 // export const createSubscription = async (req, res, next) => {
 //     // هفتح هنا session جديدة ودى بتضمن ان كل حاجة تتم مع بعض ياكله ياخلاص
@@ -78,6 +79,19 @@ export const createSubscription = async (req, res, next) => {
         });
 
         try {
+            // هنحط هنا انه يبعت اشعار يعمل اشعار جديد فى الداتابيز ان الاشتراك اتعمل بنجاح عشان نحطه فى صفحة الاشعارات لليوزر
+            await Notification.create({
+                user: req.user._id,
+                title: "Subscription Created Successfully",
+                message: `Your subscription to ${subscription.name} has been created successfully!`,
+                type: "success",
+                subscription: subscription._id,
+            })
+        } catch (NotificationError) {
+            console.error("Error creating notification:", NotificationError);
+        }
+
+        try {
             await workflowClient.trigger({
                 url: `${SERVER_URL}/api/v1/workflows/subscription/reminder`,
                 body: {
@@ -111,6 +125,42 @@ export const getUserSubscriptions = async (req, res, next) => {
             status: "success",
             data: subscriptions
         })
+    } catch (error) {
+        next(error)
+    }
+}
+
+export const deleteUserSubscription = async (req , res , next) => {
+    try {
+        const subscriptionID = req.params.id;
+
+        const subscription = await Subscription.findByIdAndDelete(subscriptionID);
+
+        if(!subscription) {
+            next(new AppError("Subscription Not Found!", 404));
+        }
+
+        res.status(200).json({
+            status: "success",
+            message: "Subscription Deleted Successfully"
+        });
+    } catch (error) {
+        next(error)
+    }
+}
+
+
+export const getSubscriptionDetails = async (req , res , next) => {
+    try {
+        const subscriptionID= req.params.id;
+        const subscription = await Subscription.findById(subscriptionID);
+        if(!subscription) {
+            next(new AppError("Subscription Not Found!", 404));
+        }
+        res.status(200).json({
+            status: "success",
+            data: subscription
+        });
     } catch (error) {
         next(error)
     }
